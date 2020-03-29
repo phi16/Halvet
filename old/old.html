@@ -1,0 +1,71 @@
+<html>
+<head>
+<script type="text/javascript">
+
+let freqDif = [];
+for(let i=-5;i<5;i+=0.1) freqDif.push(i);
+for(let i=0;i<freqDif.length;i++) freqDif[i] += Math.random()*0.05*2-1;
+function f(t,base) {
+  let v = 0;
+  let div = [], spr = [], str = [];
+  for(let i=0;i<8;i++) {
+    div.push(Math.pow(10,-Math.abs(i-0.5)*0.8));
+    spr.push(1-Math.pow(i/5,2)*2);
+    str.push(Math.pow(1-i/9,2));
+  }
+  for(let i=0;i<div.length;i++) {
+    let spread = spr[i];
+    for(let j=0;j<freqDif.length;j++) {
+      let freqD = freqDif[j];
+      let e = Math.sin((base*(freqD*0.0012+1))*(1+i)*t*2*Math.PI);
+      e *= Math.exp(-Math.pow(freqD*0.1,2.0)*spread);
+      e *= Math.pow(1-t,2.0) * (1 - str[i]) + 1 * str[i];
+      v += e * div[i];
+    }
+  }
+  v *= Math.pow(1-t,4.0) * (1-Math.pow(1-t,2.0)) * 0.08;
+  if(v<-1 || v>1) console.error("OoB");
+  return v;
+}
+function makeBuffer(ctx,base) {
+  const buffer = ctx.createBuffer(1, 44100, 44100);
+  const channel = buffer.getChannelData(0);
+  for(let i=0;i<44100;i++) {
+    if(i%1000==0) console.log(i);
+    const t = i / 44100;
+    channel[i] = f(t,base);
+  }
+  return buffer;
+}
+
+let runFunction = _=>{
+  const ctx = new AudioContext();
+
+  let buffs = [];
+  for(let i=0;i<3;i++) {
+    // 440, 554.37, 659.26
+    let x0 = 440;
+    let x1 = 440*5/4; // 440*Math.pow(Math.pow(2,1/12),4);
+    let x2 = 440*3/2; // 440*Math.pow(Math.pow(2,1/12),7);
+    buffs.push(makeBuffer(ctx,[x0,x1,x2][i]));
+  }
+  runFunction = _=>{
+    buffs.forEach(b=>{
+      const src = ctx.createBufferSource();
+      src.buffer = b;
+      src.loop = false;
+      src.connect(ctx.destination);
+      src.start();
+    });
+  };
+  runFunction();
+};
+document.addEventListener("click",_=>{
+  runFunction();
+});
+
+</script>
+</head>
+<body>
+</body>
+</html>
