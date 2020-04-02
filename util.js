@@ -25,6 +25,9 @@ const V2 = (x,y)=>{
   v.toString = _=>{
     return v.x + "," + v.y;
   };
+  v.equal = p=>{
+    return v.x == p.x && v.y == p.y;
+  };
   return v;
 };
 
@@ -173,6 +176,7 @@ const Renderer = X=>{
     X.font = s + "px Cabin";
     return X.measureText(t).width;
   };
+  r.X = X;
   return r;
 };
 
@@ -222,6 +226,20 @@ E.i = Ease(f=>f);
 E.o = Ease(f=>x=>1-f(1-x));
 E.io = Ease(f=>x=> x<0.5 ? f(2*x)/2 : 1-f(2-2*x)/2 );
 E.l = x=>x;
+
+const Saturate = x=>{
+  return Math.min(1,Math.max(0,x));
+};
+const CubicCurve = (s,t)=>x=>{
+  const dx = s+t-1, dy = s-t;
+  const t0 = dx + Math.pow(2,-dy+1)-1;
+  const t1 = dx + Math.pow(2,+dy+1)-1;
+  const x2 = x*x;
+  const a = t0+t1-2;
+  const b = -2*t0-t1+3;
+  const c = t0;
+  return a*x*x2 + b*x2 + c*x;
+};
 
 const Log = _=>{
   const l = {};
