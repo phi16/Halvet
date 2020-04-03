@@ -18,10 +18,17 @@ V.focus(cursorValue);
 let selectNode = null, mouseOnNode = null;
 let grabNodes = [], grabbing = false, grabRemoveMode = false;
 let rotateValue = 0, zoomValue = 1;
+let repeatNumber = 0, repeatNumberM = 0;
 
+const Repeat = cb=>{
+  cb();
+  for(let i=0;i<repeatNumber-1;i++) cb();
+};
 const ChangeMode = mode=>{
   cursorMode = mode;
   cursorSize = 0.6;
+  repeatNumber = 0;
+  repeatNumberM = 1;
 };
 const CursorChanged = _=>{
   cursorRegion.x = cursorValue.x;
@@ -87,9 +94,11 @@ Q.key = (e,k)=>{
   if(e == "down") {
     if(cursorMode == "Normal") {
       let rotated = false;
-      if(k == RotateLeft)  rotateValue -= 1, rotated = true;
-      if(k == RotateRight) rotateValue += 1, rotated = true;
-      rotateValue = Mod(rotateValue, 4);
+      Repeat(_=>{
+        if(k == RotateLeft)  rotateValue -= 1, rotated = true;
+        if(k == RotateRight) rotateValue += 1, rotated = true;
+        rotateValue = Mod(rotateValue, 4);
+      })
       if(rotated) V.rotate(rotateValue*0.25);
 
       let moved = false, moveIndex = rotateValue;
@@ -100,7 +109,9 @@ Q.key = (e,k)=>{
       if(moved) {
         const dx = [1,0,-1,0], dy = [0,-1,0,1];
         moveIndex = Mod(Math.round(moveIndex), 4);
-        cursorValue = cursorValue.add(V2(dx[moveIndex], dy[moveIndex]));
+        Repeat(_=>{
+          cursorValue = cursorValue.add(V2(dx[moveIndex], dy[moveIndex]));
+        });
         CursorChanged();
       }
 
@@ -142,7 +153,8 @@ Q.key = (e,k)=>{
             cursorValue = Region.corner(selectNode.region,selectNode.angle,1);
             const dx = [0,1,0,-1], dy = [1,0,-1,0];
             const d = selectNode.angle;
-            const nc = cursorValue.add(V2(dx[d], dy[d]));
+            const repCount = repeatNumber == 0 ? 1 : repeatNumber;
+            const nc = cursorValue.add(V2(dx[d]*repCount, dy[d]*repCount));
             if(H.select(nc) == null) {
               cursorValue = nc;
               CursorChanged();
@@ -268,24 +280,26 @@ Q.key = (e,k)=>{
       if(k == MoveDown)  moveIndex += 3, moved = true;
       if(moved) {
         moveIndex = Mod(Math.round(moveIndex), 4);
-        const prev = {
-          x: blankRange.x,
-          y: blankRange.y,
-          w: blankRange.w,
-          h: blankRange.h
-        };
-        if(moveIndex == 0) blankRange.w += 1;
-        if(moveIndex == 2) blankRange.w += 1, blankRange.x -= 1;
-        if(moveIndex == 3) blankRange.h += 1;
-        if(moveIndex == 1) blankRange.h += 1, blankRange.y -= 1;
-        if(!H.available(blankRange)) {
-          const sc = 0.2;
-          blankRangeM.x += (prev.x - blankRange.x) * sc;
-          blankRangeM.y += (prev.y - blankRange.y) * sc;
-          blankRangeM.w += (prev.w - blankRange.w) * sc;
-          blankRangeM.h += (prev.h - blankRange.h) * sc;
-          blankRange = prev;
-        }
+        Repeat(_=>{
+          const prev = {
+            x: blankRange.x,
+            y: blankRange.y,
+            w: blankRange.w,
+            h: blankRange.h
+          };
+          if(moveIndex == 0) blankRange.w += 1;
+          if(moveIndex == 2) blankRange.w += 1, blankRange.x -= 1;
+          if(moveIndex == 3) blankRange.h += 1;
+          if(moveIndex == 1) blankRange.h += 1, blankRange.y -= 1;
+          if(!H.available(blankRange)) {
+            const sc = 0.2;
+            blankRangeM.x += (prev.x - blankRange.x) * sc;
+            blankRangeM.y += (prev.y - blankRange.y) * sc;
+            blankRangeM.w += (prev.w - blankRange.w) * sc;
+            blankRangeM.h += (prev.h - blankRange.h) * sc;
+            blankRange = prev;
+          }
+        });
       }
 
       if(k == "Escape") {
@@ -339,21 +353,23 @@ Q.key = (e,k)=>{
         const dx = [1,0,-1,0], dy = [0,-1,0,1];
         moveIndex = Mod(Math.round(moveIndex), 4);
         const r = selectNode.region;
-        const next = cursorValue.add(V2(dx[moveIndex], dy[moveIndex]));
-        if(r.x <= next.x && next.x <= r.x+r.w-1 && r.y <= next.y && next.y <= r.y+r.h-1) {
-          cursorValue = next;
-        } else {
-          const dif = { x:0, y:0, w:0, h:0 };
-          if(moveIndex == 0) dif.w += 1;
-          if(moveIndex == 2) dif.w += 1, dif.x -= 1;
-          if(moveIndex == 3) dif.h += 1;
-          if(moveIndex == 1) dif.h += 1, dif.y -= 1;
-          const sc = 0.2;
-          cursorRegionM.x -= dif.x * sc;
-          cursorRegionM.y -= dif.y * sc;
-          cursorRegionM.w -= dif.w * sc;
-          cursorRegionM.h -= dif.h * sc;
-        }
+        Repeat(_=>{
+          const next = cursorValue.add(V2(dx[moveIndex], dy[moveIndex]));
+          if(r.x <= next.x && next.x <= r.x+r.w-1 && r.y <= next.y && next.y <= r.y+r.h-1) {
+            cursorValue = next;
+          } else {
+            const dif = { x:0, y:0, w:0, h:0 };
+            if(moveIndex == 0) dif.w += 1;
+            if(moveIndex == 2) dif.w += 1, dif.x -= 1;
+            if(moveIndex == 3) dif.h += 1;
+            if(moveIndex == 1) dif.h += 1, dif.y -= 1;
+            const sc = 0.2;
+            cursorRegionM.x -= dif.x * sc;
+            cursorRegionM.y -= dif.y * sc;
+            cursorRegionM.w -= dif.w * sc;
+            cursorRegionM.h -= dif.h * sc;
+          }
+        });
       }
       // TODO: Shift+Arrow to resize
     } else if(cursorMode == "Select") {
@@ -370,6 +386,7 @@ Q.key = (e,k)=>{
           delete n.grab;
           H.remove(n, "NoCompile");
         });
+        H.reflect();
         grabNodes = [];
         ChangeMode("Normal");
         CursorChanged();
@@ -383,8 +400,12 @@ Q.key = (e,k)=>{
       if(moved) {
         const dx = [1,0,-1,0], dy = [0,-1,0,1];
         moveIndex = Mod(Math.round(moveIndex), 4);
+        let repCount = repeatNumber == 0 ? 1 : repeatNumber;
+        let drx = dx[moveIndex]*repCount, dry = dy[moveIndex]*repCount;
         if(grabbing) {
-          cursorValue = cursorValue.add(V2(dx[moveIndex], dy[moveIndex]));
+          Repeat(_=>{
+            cursorValue = cursorValue.add(V2(drx, dry));
+          });
           CursorChanged();
           if(selectNode) {
             if(!grabRemoveMode && !selectNode.grab) {
@@ -401,8 +422,8 @@ Q.key = (e,k)=>{
           let available = true;
           grabNodes.forEach(n=>{
             const i = {
-              x: n.region.x + dx[moveIndex],
-              y: n.region.y + dy[moveIndex],
+              x: n.region.x + drx,
+              y: n.region.y + dry,
               w: n.region.w,
               h: n.region.h
             };
@@ -418,17 +439,17 @@ Q.key = (e,k)=>{
           if(available) {
             // Force Move
             grabNodes.forEach(n=>{
-              n.region.x += dx[moveIndex];
-              n.region.y += dy[moveIndex];
+              n.region.x += drx;
+              n.region.y += dry;
               if(n.operator.name == "*") {
                 n.open.forEach(o=>{
-                  o.location.x += dx[moveIndex];
-                  o.location.y += dy[moveIndex];
+                  o.location.x += drx;
+                  o.location.y += dry;
                 });
               }
             });
             H.reflect();
-            cursorValue = cursorValue.add(V2(dx[moveIndex], dy[moveIndex]));
+            cursorValue = cursorValue.add(V2(drx, dry));
             CursorChanged();
           } else {
             const dif = { x:0, y:0, w:0, h:0 };
@@ -461,6 +482,16 @@ Q.key = (e,k)=>{
         cursorSize = 0.6;
         grabbing = true;
       }
+    }
+    let numIndex = "0123456789".indexOf(k);
+    if(numIndex == -1) {
+      if(repeatNumber != 0) repeatNumber = 0, repeatNumberM = 1;
+    } else {
+      if(repeatNumber == 0) { // single digit
+        repeatNumber *= 10;
+        repeatNumber += numIndex;
+      }
+      repeatNumberM = 1;
     }
   } else if(e == "up") {
     if(cursorMode == "Select") {
@@ -593,7 +624,10 @@ Q.render = X=>{
           DrawNode(n.operator.hue,n.operator.sat,bright,n.region,n.angle,n.operator.name,(aw,ah)=>{
             if(n.render) {
               R.translate(-0.5,-0.5).with(_=>{
-                n.render(R,aw,ah);
+                const pad = 0.05;
+                R.rect(pad,pad,aw-pad*2,ah-pad*2).clip(_=>{
+                  n.render(R,aw,ah);
+                });
               });
             }
           });
@@ -614,7 +648,20 @@ Q.render = X=>{
           const d = n.type.sat < 0 ? 0.5 : n.type == Type.special ? 1.25 : 1;
           R.shape(_=>{
             const u = 0.05;
-            X.rect(r.x-u,r.y-u,r.w-1+2*u,r.h-1+2*u);
+            if(n.connection.input.length < 2) {
+              X.rect(r.x-u,r.y-u,r.w-1+2*u,r.h-1+2*u);
+            } else {
+              // TODO: region size and operator mode
+              if(n.mode == "multiplicative") {
+                X.arc(r.x,r.y,u*1.5,0,Math.PI*2,true);
+              } else {
+                X.moveTo(r.x,r.y-u*1.8);
+                X.lineTo(r.x+u*1.8,r.y);
+                X.lineTo(r.x,r.y+u*1.8);
+                X.lineTo(r.x-u*1.8,r.y);
+                X.lineTo(r.x,r.y-u*1.8);
+              }
+            }
             n.open.forEach(o=>{
               let b = o.location;
               let d = V2([0,1,0,-1][o.angle], [1,0,-1,0][o.angle]);
@@ -664,6 +711,7 @@ Q.render = X=>{
             d = 0.6;
           }
         }
+        repeatNumberM += (0 - repeatNumberM) / 2.0;
         R.translate(modRegion.x, modRegion.y).with(_=>{
           R.blend("lighter",_=>{
             R.rect(0,0,modRegion.w,modRegion.h).stroke(h,l,d,0.04);
@@ -674,7 +722,9 @@ Q.render = X=>{
               let mh = a%2 == 0 ? modRegion.h : modRegion.w;
               const curLoc = Region.corner(cursorRegion,rotateValue,1,0);
               R.text(curLoc,-0.02,mh+0.11,0.1).l().fill(h,l,d);
-              R.text(cursorMode,mw+0.01,-0.05,0.1).r().fill(h,l,d);
+              R.text(":" + cursorMode,mw+0.01,-0.05,0.1).r().fill(h,l,d);
+              const prevTextW = R.measure(":" + cursorMode,0.1);
+              R.text(repeatNumber,mw+0.01-prevTextW,-0.05,0.1*(1+repeatNumberM*0.5)).r().fill(h,l,d);
             });
           });
           R.blend("overlay",_=>{

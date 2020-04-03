@@ -297,7 +297,7 @@ Operators.push({
       const g = E.X.createGain();
       n.update = _=>{
         // TODO: reconfigure
-        g.gain.setTargetAtTime(Math.pow(volume, 4), E.X.currentTime, 0.01);
+        g.gain.setTargetAtTime(Math.pow(volume, 2), E.X.currentTime, 0.01);
       };
       n.update();
       n.connection.input.forEach(c=>{
@@ -489,6 +489,13 @@ Operators.push({
   type: Type.special,
   context: {},
   initialize: (n,E)=>{
+    n.mode = "additive";
+    n.event.key = (e,k)=>{
+      if(e == "down" && k == "s") {
+        if(n.mode == "additive") n.mode = "multiplicative";
+        else n.mode = "additive";
+      }
+    };
     n.eval = X=>{
       let count = 0;
       let g = null;

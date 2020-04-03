@@ -70,6 +70,16 @@ const Renderer = X=>{
         X.lineWidth = b;
         X.stroke();
         return o;
+      },
+      clip: (cb)=>{
+        if(lastShape != o) {
+          lastShape = o;
+          s();
+        }
+        X.save();
+        X.clip();
+        cb();
+        X.restore();
       }
     };
     return o;
