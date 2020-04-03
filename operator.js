@@ -26,6 +26,29 @@ Operators.push({
     for(let i=0;i<samples;i++) {
       curve[i] = Math.sin(i*Math.PI*2/samples);
     }
+    let prev = null;
+    n.event.mouse = (e,p,w,h)=>{
+      const cur = p.dup();
+      if(e == "down") {
+        prev = cur;
+      } else if(e == "up") {
+        prev = null;
+      } else if(e == "move") {
+        if(prev) {
+          const dist = Math.sqrt(Math.pow(cur.x-prev.x,2) + Math.pow(cur.y-prev.y,2));
+          const aX = prev.x, aY = (prev.y-0.15)/(h-0.3)*2-1;
+          const bX = cur.x, bY = (cur.y-0.15)/(h-0.3)*2-1;
+          for(let i=0;i<samples;i++) {
+            // TODO: cyclic
+            const x = 0.15+(i/samples)*(w-0.3);
+            const e = (bX-x)/(bX-aX);
+            if(0 <= e && e <= 1) curve[i] = Clamp(-1,1)(-(bY + (aY-bY) * e));
+          }
+          if(n.update) n.update();
+          prev = cur;
+        }
+      }
+    };
     n.render = (R,w,h)=>{
       const X = R.X;
       R.line(0.1,h*0.5,w-0.1,h*0.5).stroke(n.operator.hue,n.operator.sat*0.25,0.5,0.01);
@@ -42,141 +65,15 @@ Operators.push({
     n.eval = X=>{
       const o = E.X.createBufferSource();
       const b = E.X.createBuffer(1, samples, E.X.sampleRate);
-      b.copyToChannel(curve, 0);
+      n.update = _=>{
+        b.copyToChannel(curve, 0);
+      };
+      n.update();
       o.buffer = b;
       o.detune.value = 1200 * (Math.log2(X.frequency/freq) + X.pitch);
       o.loop = true;
       o.start();
       return o;
-    };
-  }
-});
-
-Operators.push({
-  name: "Harmonics",
-  hue: 0.5, sat: 1,
-  type: Type.wave,
-  context: { pitch: Type.scalar },
-  initialize: (n,E)=>{
-    const params = [
-      { alpha: 0, beta: 1, gamma: 2, mod: 2 },
-      { alpha: 0, beta: 1, gamma: 2, mod: 3 },
-      { alpha: 1, beta: 1, gamma: 2, mod: 6 },
-      { alpha: 0, beta: 1, gamma: 2, mod: 12 },
-      { alpha: 0, beta: 1, gamma: 2, mod: 18 }
-    ];
-    let param = params[2], paramIndex = 2;
-    let drag = false;
-    let mousePos = null;
-    n.event.key = (e,k)=>{
-      if(e == "down") {
-        const ix = "12345".indexOf(k);
-        if(ix != -1) {
-          param = params[ix];
-          paramIndex = ix;
-        }
-        if(k == "s") {
-          params.forEach(p=>{
-            p.alpha *= 0.9;
-          });
-          param.alpha += 0.1;
-          if(n.update) n.update();
-        }
-      }
-    };
-    n.event.mouse = (e,p,w,h)=>{
-      const cur = V2(p.x/w, p.y/h);
-      if(e == "down") {
-        drag = true;
-        mousePos = cur;
-      } else if(e == "up") {
-        drag = false;
-        if(n.update) n.update();
-      } else if(e == "move" && drag) {
-        const dif = cur.sub(mousePos);
-        param.gamma += dif.y*5;
-        param.beta += dif.x;
-        param.gamma = Clamp(-10, 10)(param.gamma);
-        param.beta = Clamp(0.01, 1)(param.beta);
-        mousePos = cur;
-      }
-    };
-    n.render = (R,w,h)=>{
-      const X = R.X;
-      R.shape(_=>{
-        for(let i=0;i<256;i++) {
-          let v = 0;
-          for(let j=0;j<5;j++) {
-            const p = params[j];
-            if(i%p.mod == 0) {
-              v += Math.pow(Saturate(1-i/127/p.beta), Math.pow(2,p.gamma)) * p.alpha;
-            }
-          }
-          v = Saturate(v);
-          const x = 0.15+(i/127)*(w-0.3);
-          const y = h*0.5-(v-0.5)*(h-0.3);
-          if(i == 0) X.moveTo(x,y);
-          else X.lineTo(x,y);
-        }
-      }).stroke(n.operator.hue,n.operator.sat*0.5,0.5,0.02);
-      R.shape(_=>{
-        for(let i=0;i<128;i+=8) {
-          const v = Math.pow(Saturate(1-i/127/param.beta), Math.pow(2,param.gamma)) * param.alpha;
-          const x = 0.15+(i/127)*(w-0.3);
-          const y = h*0.5-(v-0.5)*(h-0.3);
-          X.moveTo(x,y);
-          X.lineTo(x,h-0.15);
-        }
-      }).stroke(n.operator.hue,n.operator.sat*0.25,0.5,0.01);
-      R.shape(_=>{
-        for(let i=0;i<128;i++) {
-          const v = Math.pow(Saturate(1-i/127/param.beta), Math.pow(2,param.gamma)) * param.alpha;
-          const x = 0.15+(i/127)*(w-0.3);
-          const y = h*0.5-(v-0.5)*(h-0.3);
-          if(i == 0) X.moveTo(x,y);
-          else X.lineTo(x,y);
-        }
-      }).stroke(n.operator.hue,n.operator.sat*0.5,1,0.02);
-      const text = (paramIndex+1).toString() + ":" + Math.floor(param.alpha*100)/100;
-      R.text(text,w-0.24,0.18,0.1).r().fill(n.operator.hue,n.operator.sat*0.5,1);
-    };
-    n.eval = X=>{
-      const o = E.X.createOscillator();
-      const freq = 300;
-      const multiplier = 6;
-      o.frequency.value = freq/multiplier;
-      o.detune.value = 1200 * (Math.log2(X.frequency/freq) + X.pitch);
-      const samples = 256;
-      const pR = new Float32Array(samples);
-      const pI = new Float32Array(samples);
-      n.update = _=>{
-        pR[0] = 0, pI[0] = 0;
-        for(let i=1;i<samples;i++) {
-          const x = i/samples;
-          let v = 0;
-          for(let j=0;j<params.length;j++) {
-            const p = params[j];
-            if(i%p.mod == 0) {
-              v += Math.pow(Saturate(1-x/p.beta), Math.pow(2,p.gamma)) * p.alpha;
-            }
-          }
-          v = Saturate(v);
-          const a = Math.random()*Math.PI*2;
-          pR[i] = v*Math.cos(a);
-          pI[i] = v*Math.sin(a);
-        }
-        o.setPeriodicWave(E.X.createPeriodicWave(pR,pI));
-      };
-      n.update();
-      o.start();
-      const g = E.X.createGain();
-      o.connect(g.gain);
-      n.connection.input.forEach(c=>{
-        if(c.type == Type.wave) {
-          c.source.result[X.id].connect(g);
-        }
-      });
-      return g;
     };
   }
 });
