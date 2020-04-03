@@ -259,30 +259,6 @@ const Runtime = _=>{
     g.connect(out);
     outputNodes.push(g);
   };
-  r.multiply = (aR,aI,bR,bI)=>{
-    const gRR = X.createGain();
-    const gRI = X.createGain();
-    const gIR = X.createGain();
-    const gII = X.createGain();
-    const gR = X.createGain();
-    const gI = X.createGain();
-    aR.connect(gRR);
-    aR.connect(gRI);
-    aI.connect(gIR);
-    aI.connect(gII);
-    bR.connect(gRR.gain);
-    bR.connect(gIR.gain);
-    bI.connect(gRI.gain);
-    bI.connect(gII.gain);
-    const negate = X.createGain();
-    gII.connect(negate);
-    negate.gain.value = -1;
-    gRR.connect(gR);
-    negate.connect(gR);
-    gRI.connect(gI);
-    gIR.connect(gI);
-    return { real: gR, imag: gI };
-  };
   return r;
 };
 
@@ -302,10 +278,35 @@ const Halvet = _=>{
     let value = n.eval(context);
     n.result[context.id] = value;
   };
+  let defaultNoteListener = [];
+  const defaultNote = {
+    listen: (a,r)=>{
+      defaultNoteListener.push({
+        attack: a, release: r
+      });
+    },
+    attack: (p,v)=>{
+      defaultNoteListener.forEach(l=>{
+        l.attack(p,v);
+      });
+    },
+    release: p=>{
+      defaultNoteListener.forEach(l=>{
+        l.release(p);
+      });
+    }
+  };
+  h.noteOn = (m,v)=>{
+    defaultNote.attack(m,v);
+  };
+  h.noteOff = m=>{
+    defaultNote.release(m);
+  }
   const Compile = _=>{
+    defaultNoteListener = [];
     runtime.restart();
     const defaultContext = {
-      note: null,
+      note: defaultNote,
       velocity: 1,
       pitch: 0,
       frequency: 440,
@@ -330,10 +331,10 @@ const Halvet = _=>{
     Compile();
     return n;
   };
-  h.remove = n=>{
+  h.remove = (n,noCompile)=>{
     region.dealloc(n.region);
     nodes.remove(n);
-    Compile();
+    if(noCompile != "NoCompile") Compile();
   };
   h.select = p=>{
     const i = region.select(p.x,p.y);
