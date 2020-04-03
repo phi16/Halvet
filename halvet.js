@@ -177,6 +177,7 @@ const Nodes = R=>{
         begin: _=>_,
         end: _=>_
       },
+      data: {},
       connection: {
         input: [],
         output: []
@@ -186,7 +187,6 @@ const Nodes = R=>{
     nodes[nextId] = n;
     i.nodeId = nextId;
     nextId++;
-    if(o.initialize) o.initialize(n);
     if(cb) cb(n);
     ComputeConnection();
     return n;
@@ -228,407 +228,8 @@ const Nodes = R=>{
   return s;
 };
 
-Type.scalar = {
-  hue: 0.6, sat: 1
-};
-Type.wave = {
-  hue: 0.45, sat: 1
-};
-Type.curve = {
-  hue: 0.9, sat: 1
-};
-Type.note = {
-  hue: 0.15, sat: 1
-};
-Type.special = {
-  hue: 0, sat: 0
-};
-
-const Operators = [{
-  name: "Oscillator",
-  hue: 0.85, sat: 1,
-  type: Type.wave,
-  context: { pitch: Type.scalar },
-  eval: (n,E,X)=>{
-    const o = E.X.createBufferSource();
-    const b = E.X.createBuffer(1, 400, E.X.sampleRate);
-    b.copyToChannel(n.data.curve, 0);
-    const freq = E.X.sampleRate / 400;
-    o.buffer = b;
-    o.detune.value = 1200 * (Math.log2(X.frequency/freq) + X.pitch);
-    o.loop = true;
-    o.start();
-    n.data.buffer = b;
-    return o;
-  },
-  initialize: n=>{
-    const curve = new Float32Array(400);
-    for(let i=0;i<400;i++) {
-      curve[i] = Math.sin(i*Math.PI*2/400);
-    }
-    let spread = 0, prev = null, drag = false;
-    n.event.mouse = (e,p,w,h)=>{
-      // TODO: smoothing & nice UI
-      if(e == "down") {
-        spread = Math.max(0.01, Math.abs(p.y/h-0.5)*2);
-        prev = p;
-        drag = true;
-      } else if(e == "up") {
-        drag = false;
-        if(n.data.buffer) n.data.buffer.copyToChannel(n.data.curve, 0);
-      } else if(e == "move" && drag) {
-        const y = (p.y-prev.y)/h;
-        for(let i=0;i<400;i++) {
-          const x = 0.15+(i/400)*(w-0.3);
-          const d = 1 - Math.max(0, Math.max(prev.x-x, x-p.x))/spread;
-          if(d>0) curve[i] -= d*y;
-        }
-        if(n.data.buffer) n.data.buffer.copyToChannel(n.data.curve, 0);
-        prev = p;
-      }
-    };
-    n.data = { curve: curve };
-    n.render = (R,w,h)=>{
-      const X = R.X;
-      R.line(0.1,h*0.5,w-0.1,h*0.5).stroke(n.operator.hue,n.operator.sat*0.25,0.5,0.01);
-      R.shape(_=>{
-        for(let i=0;i<=400;i++) {
-          const v = n.data.curve[i == 400 ? 0 : i];
-          const x = 0.15+(i/400)*(w-0.3);
-          const y = h*0.5-v*(h-0.3)/2;
-          if(i == 0) X.moveTo(x,y);
-          else X.lineTo(x,y);
-        }
-      }).stroke(n.operator.hue,n.operator.sat*0.5,1,0.02);
-    };
-  }
-},{
-  name: "Harmonics",
-  hue: 0.5, sat: 1,
-  type: Type.wave,
-  context: { pitch: Type.scalar },
-  eval: (n,E,X)=>{
-    const o = E.X.createOscillator();
-    o.frequency.value = X.frequency * Math.pow(2, X.pitch);
-    const real = new Float32Array(32);
-    const imag = new Float32Array(32);
-    n.update = _=>{
-      const curve = CubicCurve(n.data.point.x, n.data.point.y);
-      real[0] = 1, imag[0] = 0;
-      for(let i=1;i<32;i++) {
-        let v = Math.pow(Math.max(0, curve(1-i/31)), 4);
-        let a = Math.random()*Math.PI*2;
-        real[i] = v*Math.cos(a);
-        imag[i] = v*Math.sin(a);
-      }
-      o.setPeriodicWave(E.X.createPeriodicWave(real,imag));
-    };
-    n.update();
-    o.start();
-    const g = E.X.createGain();
-    o.connect(g.gain);
-    n.connection.input.forEach(c=>{
-      if(c.type == Type.wave) {
-        c.source.result[X.id].connect(g);
-      }
-    });
-    return g;
-  },
-  initialize: n=>{
-    let drag = false;
-    n.event.mouse = (e,p,w,h)=>{
-      if(e == "down") {
-        drag = true;
-      } else if(e == "up") {
-        drag = false;
-      }
-      if(drag && (e == "move" || e == "down")) {
-        n.data.point.x = 1-p.x/w;
-        n.data.point.y = 1-p.y/h;
-        if(n.update) n.update();
-      }
-    };
-    n.data = { point: { x:1, y:0 } };
-    n.render = (R,w,h)=>{
-      const X = R.X;
-      const curve = CubicCurve(n.data.point.x, n.data.point.y);
-      R.shape(_=>{
-        for(let i=0;i<128;i++) {
-          const v = E(curve(1-i/127))(0,1.5)(E.l)(-0.5,0.5);
-          const x = 0.15+(i/127)*(w-0.3);
-          const y = h*0.5-v*(h-0.3);
-          if(i == 0) X.moveTo(x,y);
-          else X.lineTo(x,y);
-        }
-      }).stroke(n.operator.hue,n.operator.sat*0.5,1,0.02);
-    };
-  }
-},{
-  name: "Impulse",
-  hue: 0.5, sat: 1,
-  type: Type.wave,
-  context: { pitch: Type.scalar }
-},{
-  name: "Noise",
-  hue: 0.85, sat: 1,
-  type: Type.wave,
-  context: {},
-  eval: (n,E,X)=>{
-    const o = E.X.createBufferSource();
-    const b = E.X.createBuffer(1, E.X.sampleRate, E.X.sampleRate);
-    const c = b.getChannelData(0);
-    for(let i=0;i<E.X.sampleRate;i++) c[i] = Math.random()*2-1;
-    o.buffer = b;
-    o.loop = true;
-    o.start();
-    return o;
-  },
-},{
-  name: "Envelope",
-  hue: 0.7, sat: 1,
-  type: Type.scalar,
-  context: { note: Type.note, velocity: Type.scalar }
-},{
-  name: "Filter",
-  hue: 0.4, sat: 1,
-  type: Type.wave,
-  context: {}
-},{
-  name: "Reverb",
-  hue: 0.4, sat: 1,
-  type: Type.wave,
-  context: {}
-},{
-  name: "Gain",
-  hue: 0.95, sat: 1,
-  type: Type.wave,
-  context: {}
-},{
-  name: "Lerp",
-  hue: 0.7, sat: 1,
-  type: Type.scalar,
-  context: {}
-},{
-  name: "Distortion",
-  hue: 0.25, sat: 1,
-  type: Type.wave,
-  context: {},
-  eval: (n,E,X)=>{
-    const p = E.X.createDynamicsCompressor();
-    p.threshold.value = -50; // TODO: reconfigure
-    p.knee.value = 40;
-    p.ratio.value = 12;
-    p.attack.value = 0;
-    p.release.value = 0.25;
-    const w = E.X.createWaveShaper();
-    const curve = new Float32Array(256);
-    n.update = _=>{
-      const cu = CubicCurve(n.data.point.x, n.data.point.y);
-      for(let i=0;i<curve.length;i++) {
-        const x = i/(curve.length-1) * 2 - 1;
-        curve[i] = Saturate(cu(Math.abs(x))) * Math.sign(x);
-      }
-      w.curve = curve;
-    };
-    n.update();
-    p.connect(w);
-    n.connection.input.forEach(c=>{
-      if(c.type == Type.wave) {
-        c.source.result[X.id].connect(p);
-      }
-    });
-    return w;
-  },
-  initialize: n=>{
-    n.data = { point: { x:0.5, y:0.5 } };
-    let drag = false;
-    n.event.mouse = (e,p,w,h)=>{
-      if(e == "down") {
-        drag = true;
-      } else if(e == "up") {
-        drag = false;
-      }
-      if(drag && (e == "move" || e == "down")) {
-        n.data.point.x = 1-p.x/w;
-        n.data.point.y = 1-p.y/h;
-        if(n.update) n.update();
-      }
-    };
-    n.render = (R,w,h)=>{
-      const X = R.X;
-      const curve = CubicCurve(n.data.point.x, n.data.point.y);
-      R.shape(_=>{
-        for(let i=0;i<128;i++) {
-          const v = E(curve(i/127))(0,1)(E.l)(-0.5,0.5);
-          const x = 0.15+(i/127)*(w-0.3);
-          const y = h*0.5-v*(h-0.3);
-          if(i == 0) X.moveTo(x,y);
-          else X.lineTo(x,y);
-        }
-      }).stroke(n.operator.hue,n.operator.sat*0.5,1,0.02);
-    };
-  }
-},{
-  name: "Equalizer",
-  hue: 0.4, sat: 1,
-  type: Type.wave,
-  context: {}
-},{
-  name: "Pattern",
-  hue: 0.1, sat: 1,
-  type: Type.note,
-  context: { tempo: Type.scalar }
-},{
-  name: "Perform",
-  hue: 0.1, sat: 1,
-  type: Type.wave,
-  context: {}
-},{
-  name: "Curve",
-  hue: 0.7, sat: 1,
-  type: Type.curve,
-  context: {}
-},{
-  name: "Compressor",
-  hue: 0.25, sat: 1,
-  type: Type.wave,
-  context: {}
-},{
-  name: "Mixer",
-  hue: 0.95, sat: 1,
-  type: Type.wave,
-  context: {}
-},{
-  name: "Value",
-  hue: 0.7, sat: 1,
-  type: Type.scalar,
-  context: {}
-},{
-  name: "Note",
-  hue: 0.1, sat: 1,
-  type: Type.note,
-  context: {}
-},{
-  name: "Comment",
-  hue: 0, sat: 0,
-  type: Type.none,
-  context: {},
-  eval: (n,E,X)=>{ return null; }
-},{
-  name: "Scope",
-  hue: 0, sat: 0,
-  type: Type.wave,
-  context: {},
-  eval: (n,E,X)=>{
-    const a = E.X.createAnalyser();
-    a.fftSize = 4096;
-    n.connection.input.forEach(c=>{
-      if(c.type == Type.wave) {
-        c.source.result[X.id].connect(a);
-      }
-    });
-    n.data.analyser = a;
-    return a;
-  },
-  initialize: n=>{
-    n.data = { array: new Float32Array(2048), analyser: null };
-    let mode = "wave";
-    n.event.key = (e,k)=>{
-      if(e == "down") {
-        if(k == "w") mode = "wave";
-        if(k == "f") mode = "freq";
-      }
-    };
-    n.render = (R,w,h)=>{
-      const X = R.X;
-      if(mode == "wave") R.line(0.1,h*0.5,w-0.1,h*0.5).stroke(0,0,0.5,0.01);
-      if(n.data.analyser) {
-        let shape = null;
-        if(mode == "wave") {
-          n.data.analyser.getFloatTimeDomainData(n.data.array);
-          shape = R.shape(_=>{
-            for(let i=0;i<256;i++) {
-              const v = n.data.array[i];
-              const x = 0.15+(i/255)*(w-0.3);
-              const y = h*0.5-v*(h-0.3)/2;
-              if(i == 0) X.moveTo(x,y);
-              else X.lineTo(x,y);
-            }
-          });
-        } else {
-          n.data.analyser.getFloatFrequencyData(n.data.array);
-          shape = R.shape(_=>{
-            for(let i=0;i<256;i++) {
-              const v = n.data.array[i*8]/128 + 0.5;
-              const x = 0.15+(i/255)*(w-0.3);
-              const y = h*0.5-v*(h-0.3)/2;
-              if(i == 0) X.moveTo(x,y);
-              else X.lineTo(x,y);
-            }
-          });
-        }
-        shape.stroke(0,0,1,0.02);
-      }
-    }
-  }
-},{
-  name: "Buffer",
-  hue: 0.85, sat: 1,
-  type: Type.wave,
-  context: {}
-},{
-  name: "Output",
-  hue: 0, sat: 0,
-  type: Type.none,
-  context: {},
-  eval: (n,E,X)=>{
-    const g = E.X.createGain();
-    g.gain.value = 0.1;
-    n.connection.input.forEach(c=>{
-      if(c.type == Type.wave) {
-        c.source.result[X.id].connect(g);
-      }
-    });
-    E.addOutput(g);
-    return null;
-  }
-},{
-  name: "Translocate",
-  hue: 0, sat: 0,
-  type: Type.special,
-  context: {}
-},{
-  name: "*", // Flow Control: add, multiply, duplicate, stop, turn
-  hue: 0, sat: 0,
-  type: Type.special,
-  context: {},
-  eval: (n,E,X)=>{
-    let count = 0;
-    let g = null;
-    n.connection.input.forEach(c=>{
-      if(c.type == Type.wave) {
-        if(count == 0) g = c.source.result[X.id];
-        else {
-          if(count == 1) {
-            const t = g;
-            g = E.X.createGain();
-            t.connect(g);
-          }
-          // Additive
-          // TODO: multiplicative
-          c.source.result[X.id].connect(g);
-        }
-        count++;
-      }
-    });
-    return g;
-  }
-}];
-
+const Operators = [];
 const OperatorMap = {};
-for(let i=0;i<Operators.length;i++) {
-  OperatorMap[Operators[i].name] = Operators[i];
-}
 
 const Runtime = _=>{
   const X = new AudioContext();
@@ -674,7 +275,7 @@ const Halvet = _=>{
         Eval(t,context);
       }
     });
-    let value = n.operator.eval(n, runtime, context);
+    let value = n.eval(context);
     n.result[context.id] = value;
   };
   const Compile = _=>{
@@ -698,7 +299,10 @@ const Halvet = _=>{
   };
   h.new = (r,o,a,cb)=>{
     const i = region.alloc(r);
-    const n = nodes.new(i,o,a,cb);
+    const n = nodes.new(i,o,a,n=>{
+      if(o.initialize) o.initialize(n,runtime);
+      if(cb) cb(n);
+    });
     Compile();
     return n;
   };
@@ -722,7 +326,7 @@ const Halvet = _=>{
     if(t.length == 0) return null;
     for(let i=0;i<Operators.length;i++) {
       const n = Operators[i].name;
-      if(n.startsWith(t) && Operators[i].eval) {
+      if(n.startsWith(t)) {
         return Operators[i];
       }
     }

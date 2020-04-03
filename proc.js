@@ -75,16 +75,16 @@ Q.key = (e,k)=>{
   if(e == "down") {
     if(cursorMode == "Normal") {
       let rotated = false;
-      if(k == "h") rotateValue -= 1, rotated = true;
-      if(k == "l") rotateValue += 1, rotated = true;
+      if(k == "ArrowLeft") rotateValue -= 1, rotated = true;
+      if(k == "ArrowRight") rotateValue += 1, rotated = true;
       rotateValue = Mod(rotateValue, 4);
       if(rotated) V.rotate(rotateValue*0.25);
 
       let moved = false, moveIndex = rotateValue;
-      if(k == "ArrowLeft")  moveIndex += 2, moved = true;
-      if(k == "ArrowRight") moveIndex += 0, moved = true;
-      if(k == "ArrowUp")    moveIndex += 1, moved = true;
-      if(k == "ArrowDown")  moveIndex += 3, moved = true;
+      if(k == "h") moveIndex += 2, moved = true;
+      if(k == "l") moveIndex += 0, moved = true;
+      if(k == "k") moveIndex += 1, moved = true;
+      if(k == "j") moveIndex += 3, moved = true;
       if(moved) {
         const dx = [1,0,-1,0], dy = [0,-1,0,1];
         moveIndex = Mod(Math.round(moveIndex), 4);
@@ -92,22 +92,22 @@ Q.key = (e,k)=>{
         CursorChanged();
       }
 
-      if(k == "j" || k == "k") {
+      if(k == "ArrowDown" || k == "ArrowUp") {
         let target = null;
         // TODO: select index according to the current cursor and angle
         if(selectNode) {
-          if(k == "j" && selectNode.connection.output.length > 0) {
+          if(k == "ArrowDown" && selectNode.connection.output.length > 0) {
             target = selectNode.connection.output[0].target;
           }
-          if(k == "k" && selectNode.connection.input.length > 0) {
+          if(k == "ArrowUp" && selectNode.connection.input.length > 0) {
             target = selectNode.connection.input[0].source;
           }
         } else {
           const conns = H.connectionAt(cursorValue);
           if(conns.length > 0) {
             const c = conns[0];
-            if(k == "j") target = c.target;
-            if(k == "k") target = c.source;
+            if(k == "ArrowDown") target = c.target;
+            if(k == "ArrowUp") target = c.source;
           }
         }
         if(target) {
@@ -240,10 +240,10 @@ Q.key = (e,k)=>{
       }
     } else if(cursorMode == "Create") {
       let moved = false, moveIndex = rotateValue;
-      if(k == "ArrowLeft")  moveIndex += 2, moved = true;
-      if(k == "ArrowRight") moveIndex += 0, moved = true;
-      if(k == "ArrowUp")    moveIndex += 1, moved = true;
-      if(k == "ArrowDown")  moveIndex += 3, moved = true;
+      if(k == "H") moveIndex += 2, moved = true;
+      if(k == "L") moveIndex += 0, moved = true;
+      if(k == "K") moveIndex += 1, moved = true;
+      if(k == "J") moveIndex += 3, moved = true;
       if(moved) {
         moveIndex = Mod(Math.round(moveIndex), 4);
         const prev = {
@@ -271,15 +271,17 @@ Q.key = (e,k)=>{
         ChangeMode("Normal");
       }
 
-      if(k.length == 1 && "a" <= k && k <= "z") {
-        if(blankName.length == 0) blankName += k.toUpperCase();
-        else blankName += k;
-        CheckBlankName();
-      }
-      if(k.length == 1 && "A" <= k && k <= "Z") {
-        if(blankName.length != 0) blankName += k.toLowerCase();
-        else blankName += k;
-        CheckBlankName();
+      if(!moved) {
+        if(k.length == 1 && "a" <= k && k <= "z") {
+          if(blankName.length == 0) blankName += k.toUpperCase();
+          else blankName += k;
+          CheckBlankName();
+        }
+        if(k.length == 1 && "A" <= k && k <= "Z") {
+          if(blankName.length != 0) blankName += k.toLowerCase();
+          else blankName += k;
+          CheckBlankName();
+        }
       }
       if(k == "Tab" && blankCandidate) {
         blankName = blankCandidate.name;
@@ -307,10 +309,10 @@ Q.key = (e,k)=>{
       }
 
       let moved = false, moveIndex = rotateValue;
-      if(k == "ArrowLeft")  moveIndex += 2, moved = true;
-      if(k == "ArrowRight") moveIndex += 0, moved = true;
-      if(k == "ArrowUp")    moveIndex += 1, moved = true;
-      if(k == "ArrowDown")  moveIndex += 3, moved = true;
+      if(k == "h") moveIndex += 2, moved = true;
+      if(k == "l") moveIndex += 0, moved = true;
+      if(k == "k") moveIndex += 1, moved = true;
+      if(k == "j") moveIndex += 3, moved = true;
       if(moved) {
         const dx = [1,0,-1,0], dy = [0,-1,0,1];
         moveIndex = Mod(Math.round(moveIndex), 4);
