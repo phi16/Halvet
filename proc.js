@@ -495,15 +495,18 @@ Q.key = (e,k)=>{
         grabbing = true;
       }
     }
-    let numIndex = "0123456789".indexOf(k);
-    if(numIndex == -1) {
-      if(repeatNumber != 0) repeatNumber = 0, repeatNumberM = 1;
-    } else {
-      if(repeatNumber == 0) { // single digit
-        repeatNumber *= 10;
-        repeatNumber += numIndex;
+
+    if(cursorMode != "Detail") {
+      let numIndex = "0123456789".indexOf(k);
+      if(numIndex == -1) {
+        if(repeatNumber != 0) repeatNumber = 0, repeatNumberM = 1;
+      } else {
+        if(repeatNumber == 0) { // single digit
+          repeatNumber *= 10;
+          repeatNumber += numIndex;
+        }
+        repeatNumberM = 1;
       }
-      repeatNumberM = 1;
     }
   } else if(e == "up") {
     if(cursorMode == "Select") {

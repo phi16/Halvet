@@ -58,9 +58,32 @@ Operators.push({
   type: Type.wave,
   context: { pitch: Type.scalar },
   initialize: (n,E)=>{
-    let alpha = 2, beta = 1;
+    const params = [
+      { alpha: 0, beta: 1, gamma: 2, mod: 2 },
+      { alpha: 0, beta: 1, gamma: 2, mod: 3 },
+      { alpha: 1, beta: 1, gamma: 2, mod: 6 },
+      { alpha: 0, beta: 1, gamma: 2, mod: 12 },
+      { alpha: 0, beta: 1, gamma: 2, mod: 18 }
+    ];
+    let param = params[2], paramIndex = 2;
     let drag = false;
     let mousePos = null;
+    n.event.key = (e,k)=>{
+      if(e == "down") {
+        const ix = "12345".indexOf(k);
+        if(ix != -1) {
+          param = params[ix];
+          paramIndex = ix;
+        }
+        if(k == "s") {
+          params.forEach(p=>{
+            p.alpha *= 0.9;
+          });
+          param.alpha += 0.1;
+          if(n.update) n.update();
+        }
+      }
+    };
     n.event.mouse = (e,p,w,h)=>{
       const cur = V2(p.x/w, p.y/h);
       if(e == "down") {
@@ -71,39 +94,72 @@ Operators.push({
         if(n.update) n.update();
       } else if(e == "move" && drag) {
         const dif = cur.sub(mousePos);
-        alpha += dif.y*5;
-        beta += dif.x;
-        alpha = Clamp(-10, 10)(alpha);
-        beta = Clamp(0.01, 1)(beta);
+        param.gamma += dif.y*5;
+        param.beta += dif.x;
+        param.gamma = Clamp(-10, 10)(param.gamma);
+        param.beta = Clamp(0.01, 1)(param.beta);
         mousePos = cur;
       }
     };
     n.render = (R,w,h)=>{
       const X = R.X;
       R.shape(_=>{
+        for(let i=0;i<256;i++) {
+          let v = 0;
+          for(let j=0;j<5;j++) {
+            const p = params[j];
+            if(i%p.mod == 0) {
+              v += Math.pow(Saturate(1-i/127/p.beta), Math.pow(2,p.gamma)) * p.alpha;
+            }
+          }
+          v = Saturate(v);
+          const x = 0.15+(i/127)*(w-0.3);
+          const y = h*0.5-(v-0.5)*(h-0.3);
+          if(i == 0) X.moveTo(x,y);
+          else X.lineTo(x,y);
+        }
+      }).stroke(n.operator.hue,n.operator.sat*0.5,0.5,0.02);
+      R.shape(_=>{
+        for(let i=0;i<128;i+=8) {
+          const v = Math.pow(Saturate(1-i/127/param.beta), Math.pow(2,param.gamma)) * param.alpha;
+          const x = 0.15+(i/127)*(w-0.3);
+          const y = h*0.5-(v-0.5)*(h-0.3);
+          X.moveTo(x,y);
+          X.lineTo(x,h-0.15);
+        }
+      }).stroke(n.operator.hue,n.operator.sat*0.25,0.5,0.01);
+      R.shape(_=>{
         for(let i=0;i<128;i++) {
-          const v = Math.pow(Saturate(1-i/127/beta), Math.pow(2,alpha));
+          const v = Math.pow(Saturate(1-i/127/param.beta), Math.pow(2,param.gamma)) * param.alpha;
           const x = 0.15+(i/127)*(w-0.3);
           const y = h*0.5-(v-0.5)*(h-0.3);
           if(i == 0) X.moveTo(x,y);
           else X.lineTo(x,y);
         }
       }).stroke(n.operator.hue,n.operator.sat*0.5,1,0.02);
+      const text = (paramIndex+1).toString() + ":" + Math.floor(param.alpha*100)/100;
+      R.text(text,w-0.24,0.18,0.1).r().fill(n.operator.hue,n.operator.sat*0.5,1);
     };
     n.eval = X=>{
       const o = E.X.createOscillator();
       const freq = 300;
-      const multiplier = 1;
+      const multiplier = 6;
       o.frequency.value = freq/multiplier;
       o.detune.value = 1200 * (Math.log2(X.frequency/freq) + X.pitch);
-      const samples = 32;
+      const samples = 256;
       const pR = new Float32Array(samples);
       const pI = new Float32Array(samples);
       n.update = _=>{
         pR[0] = 0, pI[0] = 0;
         for(let i=1;i<samples;i++) {
           const x = i/samples;
-          let v = Math.pow(Saturate(1-x/beta), Math.pow(2,alpha));
+          let v = 0;
+          for(let j=0;j<params.length;j++) {
+            const p = params[j];
+            if(i%p.mod == 0) {
+              v += Math.pow(Saturate(1-x/p.beta), Math.pow(2,p.gamma)) * p.alpha;
+            }
+          }
           v = Saturate(v);
           const a = Math.random()*Math.PI*2;
           pR[i] = v*Math.cos(a);
@@ -131,7 +187,7 @@ Operators.push({
   type: Type.wave,
   context: {},
   initialize: (n,E)=>{
-    n.eval = X=>{ // TODO: parameter
+    n.eval = X=>{
       const o = E.X.createBufferSource();
       const b = E.X.createBuffer(1, E.X.sampleRate, E.X.sampleRate);
       const c = b.getChannelData(0);
@@ -217,6 +273,7 @@ Operators.push({
           param.q -= dif.y*10;
           param.freq = Clamp(0,24000)(param.freq);
           param.q = Clamp(-20,20)(param.q);
+          console.log(param.q);
           target.frequency.setTargetAtTime(param.freq, E.X.currentTime, 0.01);
           target.Q.setTargetAtTime(param.q, E.X.currentTime, 0.01);
           if(n.update) n.update();
