@@ -4,7 +4,7 @@ const midi = await navigator.requestMIDIAccess();
 const inputIt = midi.inputs.values();
 const midiReceive = [];
 for(let input = inputIt.next(); !input.done; input = inputIt.next()) {
-  console.log("Midi connecteed");
+  console.log("Midi connected");
   const device = input.value;
   device.addEventListener("midimessage", e=>{
     midiReceive.forEach(l=>{

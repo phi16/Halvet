@@ -259,6 +259,30 @@ const Runtime = _=>{
     g.connect(out);
     outputNodes.push(g);
   };
+  r.multiply = (aR,aI,bR,bI)=>{
+    const gRR = X.createGain();
+    const gRI = X.createGain();
+    const gIR = X.createGain();
+    const gII = X.createGain();
+    const gR = X.createGain();
+    const gI = X.createGain();
+    aR.connect(gRR);
+    aR.connect(gRI);
+    aI.connect(gIR);
+    aI.connect(gII);
+    bR.connect(gRR.gain);
+    bR.connect(gIR.gain);
+    bI.connect(gRI.gain);
+    bI.connect(gII.gain);
+    const negate = X.createGain();
+    gII.connect(negate);
+    negate.gain.value = -1;
+    gRR.connect(gR);
+    negate.connect(gR);
+    gRI.connect(gI);
+    gIR.connect(gI);
+    return { real: gR, imag: gI };
+  };
   return r;
 };
 

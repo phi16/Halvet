@@ -227,9 +227,10 @@ E.o = Ease(f=>x=>1-f(1-x));
 E.io = Ease(f=>x=> x<0.5 ? f(2*x)/2 : 1-f(2-2*x)/2 );
 E.l = x=>x;
 
-const Saturate = x=>{
-  return Math.min(1,Math.max(0,x));
+const Clamp = (a,b)=>x=>{
+  return Math.min(b,Math.max(a,x));
 };
+const Saturate = Clamp(0,1);
 const CubicCurve = (s,t)=>x=>{
   const dx = s+t-1, dy = s-t;
   const t0 = dx + Math.pow(2,-dy+1)-1;
