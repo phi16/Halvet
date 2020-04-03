@@ -160,7 +160,19 @@ Q.key = (e,k)=>{
               CursorChanged();
             }
           } else {
-            // TODO: insert
+            const dx = [0,1,0,-1], dy = [1,0,-1,0];
+            const d = rotateValue;
+            const maxD = Math.max(selectNode.region.w, selectNode.region.h);
+            let curPos = cursorValue, curSelect = null;
+            for(let i=1;i<=maxD;i++) {
+              curPos = cursorValue.sub(V2(dx[d]*i, dy[d]*i));
+              curSelect = H.select(curPos);
+              if(curSelect != selectNode) break;
+            }
+            if(curSelect == null) {
+              cursorValue = curPos;
+              CursorChanged();
+            }
           }
         }
         if(H.select(cursorValue) == null) {
@@ -556,7 +568,6 @@ Q.render = X=>{
 
       const of = 0.04;
       const DrawNode = (h,l,d,r,a,t,cb)=>{
-        // R.rect(r.x-0.5,r.y-0.5,r.w,r.h).fill(h,l,d*0.5);
         R.region(r,a,(aw,ah)=>{
           R.rect(-0.5+of,-0.5+of,aw-2*of,ah-2*of).fill(h,l,d*0.3).stroke(h,l,d*1,0.02);
           R.shape(_=>{
@@ -651,7 +662,7 @@ Q.render = X=>{
             if(n.connection.input.length < 2) {
               X.rect(r.x-u,r.y-u,r.w-1+2*u,r.h-1+2*u);
             } else {
-              // TODO: region size and operator mode
+              // TODO: region size
               if(n.mode == "multiplicative") {
                 X.arc(r.x,r.y,u*1.5,0,Math.PI*2,true);
               } else {
