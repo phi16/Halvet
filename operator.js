@@ -189,7 +189,80 @@ Operators.push({
   name: "Filter",
   hue: 0.4, sat: 1,
   type: Type.wave,
-  context: {}
+  context: {},
+  initialize: (n,E)=>{
+    const freqArray = new Float32Array(256);
+    for(let i=0;i<256;i++) freqArray[i] = i*80;
+    const lpfArray = new Float32Array(256);
+    const hpfArray = new Float32Array(256);
+    const phaseArray = new Float32Array(256);
+    let lowParam = { freq: 24000, q: 0 };
+    let highParam = { freq: 0, q: 0 };
+    let target = null, param = null;
+    let prev = null;
+    n.event.mouse = (e,p,w,h)=>{
+      const cur = V2(p.x/w, p.y/h);
+      if(e == "down") {
+        if(cur.x < 0.5) target = n.data.hpf, param = highParam;
+        else target = n.data.lpf, param = lowParam;
+        param.freq = target.frequency.value;
+        param.q = target.Q.value;
+        prev = cur;
+      } else if(e == "up") {
+        target = null;
+      } else if(e == "move") {
+        if(target) {
+          const dif = cur.sub(prev);
+          param.freq += dif.x*24000;
+          param.q -= dif.y*10;
+          param.freq = Clamp(0,24000)(param.freq);
+          param.q = Clamp(-20,20)(param.q);
+          target.frequency.setTargetAtTime(param.freq, E.X.currentTime, 0.01);
+          target.Q.setTargetAtTime(param.q, E.X.currentTime, 0.01);
+          if(n.update) n.update();
+          prev = cur;
+        }
+      }
+    };
+    n.render = (R,w,h)=>{
+      const X = R.X;
+      R.line(w*0.5,0.1,w*0.5,h-0.1).stroke(n.operator.hue,n.operator.sat*0.25,0.5,0.01);
+      if(n.data.lpf && n.data.hpf) {
+        R.shape(_=>{
+          for(let i=0;i<256;i++) {
+            const v = lpfArray[i]*hpfArray[i];
+            const x = 0.15+(i/255)*(w-0.3);
+            const y = h*0.5-(v-1)*(h-0.3)/2;
+            if(i == 0) X.moveTo(x,y);
+            else X.lineTo(x,y);
+          }
+        }).stroke(0,0,1,0.02);
+      }
+    };
+    n.eval = X=>{
+      const lpf = E.X.createBiquadFilter();
+      lpf.type = "lowpass";
+      lpf.frequency.value = lowParam.freq;
+      lpf.Q.value = lowParam.q;
+      const hpf = E.X.createBiquadFilter();
+      hpf.type = "highpass";
+      hpf.frequency.value = highParam.freq;
+      hpf.Q.value = highParam.q;
+      n.update = _=>{
+        lpf.getFrequencyResponse(freqArray, lpfArray, phaseArray);
+        hpf.getFrequencyResponse(freqArray, hpfArray, phaseArray);
+      };
+      n.update();
+      n.data = { lpf: lpf, hpf: hpf };
+      n.connection.input.forEach(c=>{
+        if(c.type == Type.wave) {
+          c.source.result[X.id].connect(lpf);
+        }
+      });
+      lpf.connect(hpf);
+      return hpf;
+    };
+  }
 });
 
 Operators.push({
@@ -494,6 +567,7 @@ Operators.push({
       if(e == "down" && k == "s") {
         if(n.mode == "additive") n.mode = "multiplicative";
         else n.mode = "additive";
+        // TODO: actual function switch
       }
     };
     n.eval = X=>{
