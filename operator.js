@@ -251,7 +251,14 @@ Operators.push({
         for(let i=0;i<128;i++) {
           const v = Math.pow(Saturate(1-i/127/beta), Math.pow(2,alpha));
           const x = 0.15+(i/127)*(w-0.3);
-          const y = h*0.5-(v-0.5)*(h-0.3);
+          const y = h*0.5-(v*0.25)*(h-0.3);
+          if(i == 0) X.moveTo(x,y);
+          else X.lineTo(x,y);
+        }
+        for(let i=0;i<128;i++) {
+          const v = Math.pow(Saturate(1-i/127/beta), Math.pow(2,alpha));
+          const x = 0.15+(i/127)*(w-0.3);
+          const y = h*0.5-(-v*0.25)*(h-0.3);
           if(i == 0) X.moveTo(x,y);
           else X.lineTo(x,y);
         }
@@ -281,6 +288,112 @@ Operators.push({
         }
       });
       return r;
+    };
+  }
+});
+
+Operators.push({
+  name: "String",
+  hue: 0.4, sat: 1,
+  type: Type.wave,
+  context: {},
+  initialize: (n,E)=>{
+    const freqArray = new Float32Array(256);
+    for(let i=0;i<256;i++) freqArray[i] = i*80;
+    const lpfArray = new Float32Array(256);
+    const phaseArray = new Float32Array(256);
+    let lowParam = { freq: 24000, q: 0 };
+    let target = null, param = null;
+    let prev = null;
+    n.event.mouse = (e,p,w,h)=>{
+      const cur = V2(p.x/w, p.y/h);
+      if(e == "down") {
+        target = n.data.lpf, param = lowParam;
+        param.freq = target.frequency.value;
+        param.q = target.Q.value;
+        prev = cur;
+      } else if(e == "up") {
+        target = null;
+      } else if(e == "move") {
+        if(target) {
+          const dif = cur.sub(prev);
+          param.freq += dif.x*24000;
+          param.q -= dif.y*10;
+          param.freq = Clamp(0,24000)(param.freq);
+          param.q = Clamp(-40,0)(param.q);
+          target.frequency.setTargetAtTime(param.freq, E.X.currentTime, 0.01);
+          target.Q.setTargetAtTime(param.q, E.X.currentTime, 0.01);
+          if(n.update) n.update();
+          prev = cur;
+        }
+      }
+    };
+    n.render = (R,w,h)=>{
+      const X = R.X;
+      if(n.data.lpf) {
+        R.shape(_=>{
+          for(let i=0;i<256;i++) {
+            const v = lpfArray[i];
+            const x = 0.15+(i/255)*(w-0.3);
+            const y = h*0.5-(v-0.5)*(h-0.3)/2;
+            if(i == 0) X.moveTo(x,y);
+            else X.lineTo(x,y);
+          }
+        }).stroke(0,0,1,0.02);
+      }
+    };
+    n.eval = X=>{
+      const g = E.X.createGain();
+      const o = E.X.createGain();
+      g.gain.value = 0;
+      let freq = X.frequency*1.5;
+      const d = E.X.createDelay();
+      const lpf = E.X.createBiquadFilter();
+      X.note.listen((p,v)=>{
+        freq = X.frequency * Math.pow(2, (p-40)/12);
+        console.log(freq);
+        g.gain.setTargetAtTime(1, E.X.currentTime, 0.01);
+        g.gain.setTargetAtTime(0, E.X.currentTime + 1/freq, 0.01);
+        o.gain.setTargetAtTime(1, E.X.currentTime, 0.01);
+        d.delayTime.value = 1/freq;
+        lpf.detune.value = Math.log2(freq/440);
+      }, _=>{
+        // o.gain.setTargetAtTime(0, E.X.currentTime, 0.2);
+      });
+      n.connection.input.forEach(c=>{
+        if(c.type == Type.wave) {
+          c.source.result[X.id].connect(g);
+        }
+      });
+      d.delayTime.value = 1/freq;
+      lpf.type = "lowpass";
+      lpf.frequency.value = lowParam.freq;
+      lpf.Q.value = lowParam.q;
+
+      const r = E.X.createConvolver();
+      const samples = E.X.sampleRate;
+      const b = E.X.createBuffer(1, E.X.sampleRate, E.X.sampleRate);
+      const b0 = b.getChannelData(0);
+      for(let i=0;i<samples;i++) {
+        const x = i/samples;
+        const beta = 1, alpha = 1;
+        let v = Math.pow(Saturate(1-x/beta), Math.pow(2,alpha));
+        v = Saturate(v);
+        const a = Math.random();
+        b0[i] = i==0 ? 1 : 0; // v*Math.pow(a,1);
+      }
+      r.buffer = b;
+
+      n.data = { lpf: lpf };
+      n.update = _=>{
+        lpf.getFrequencyResponse(freqArray, lpfArray, phaseArray);
+      };
+      n.update();
+      g.connect(o);
+      o.connect(d);
+      d.connect(lpf);
+      lpf.connect(o);
+      return o;
     };
   }
 });
@@ -348,7 +461,62 @@ Operators.push({
   name: "Distortion",
   hue: 0.25, sat: 1,
   type: Type.wave,
-  context: {}
+  context: {},
+  initialize: (n,E)=>{
+    let alpha = 0, beta = 0;
+    let drag = false;
+    let mousePos = null;
+    n.event.mouse = (e,p,w,h)=>{
+      const cur = V2(p.x/w, p.y/h);
+      if(e == "down") {
+        drag = true;
+        mousePos = cur;
+      } else if(e == "up") {
+        drag = false;
+        if(n.update) n.update();
+      } else if(e == "move" && drag) {
+        const dif = cur.sub(mousePos);
+        alpha += dif.y;
+        beta += dif.x;
+        alpha = Clamp(-1, 1)(alpha);
+        beta = Clamp(-1, 1)(beta);
+        mousePos = cur;
+      }
+    };
+    n.render = (R,w,h)=>{
+      const X = R.X;
+      R.shape(_=>{
+        for(let i=0;i<256;i++) {
+          const v = i/255 * 2 - 1;
+          const x = 0.15+(i/255)*(w-0.3);
+          const y = h*0.5-(v*0.5)*(h-0.3);
+          if(i == 0) X.moveTo(x,y);
+          else X.lineTo(x,y);
+        }
+      }).stroke(n.operator.hue,n.operator.sat*0.5,1,0.02);
+    };
+    n.eval = X=>{
+      const p = E.X.createDynamicsCompressor();
+      const w = E.X.createWaveShaper();
+      const curve = new Float32Array(256);
+      n.update = _=>{
+        const cu = x=>x;
+        for(let i=0;i<curve.length;i++) {
+          const x = i/(curve.length-1) * 2 - 1;
+          curve[i] = Saturate(cu(Math.abs(x))) * Math.sign(x);
+        }
+        w.curve = curve;
+      };
+      n.update();
+      p.connect(w);
+      n.connection.input.forEach(c=>{
+        if(c.type == Type.wave) {
+          c.source.result[X.id].connect(p);
+        }
+      });
+      return w;
+    };
+  }
 });
 
 Operators.push({
@@ -491,7 +659,7 @@ Operators.push({
   initialize: (n,E)=>{
     n.eval = X=>{
       const g = E.X.createGain();
-      g.gain.value = 0.02;
+      g.gain.value = 1;
       n.connection.input.forEach(c=>{
         if(c.type == Type.wave) {
           c.source.result[X.id].connect(g);
@@ -550,5 +718,6 @@ Operators.push({
 });
 
 for(let i=0;i<Operators.length;i++) {
+  console.log(Operators[i].name);
   OperatorMap[Operators[i].name] = Operators[i];
 }

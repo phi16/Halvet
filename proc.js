@@ -449,7 +449,6 @@ Q.key = (e,k)=>{
           });
           // Move Nodes
           if(available) {
-            // Force Move
             grabNodes.forEach(n=>{
               n.region.x += drx;
               n.region.y += dry;

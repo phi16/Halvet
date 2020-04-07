@@ -234,11 +234,6 @@ const OperatorMap = {};
 const Runtime = _=>{
   const X = new AudioContext();
   const out = X.createDynamicsCompressor();
-  out.threshold.value = -50; // TODO: reconfigure
-  out.knee.value = 40;
-  out.ratio.value = 12;
-  out.attack.value = 0;
-  out.release.value = 0.25;
   out.connect(X.destination);
   let outputNodes = [];
 
