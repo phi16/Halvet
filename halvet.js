@@ -254,6 +254,22 @@ const Runtime = _=>{
     g.connect(out);
     outputNodes.push(g);
   };
+  let micStream = null, waiting = null;
+  r.getMic = cb=>{
+    if(micStream) cb(micStream);
+    else if(waiting != null) waiting.push(cb);
+    else {
+      waiting = [];
+      navigator.mediaDevices.getUserMedia({audio:true, video:false}).then(ls=>{
+        micStream = X.createMediaStreamSource(ls);
+        waiting.forEach(w=>{
+          w(micStream);
+        });
+        waiting = [];
+        cb(micStream);
+      });
+    }
+  };
   return r;
 };
 
