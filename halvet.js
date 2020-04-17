@@ -85,6 +85,7 @@ const Nodes = R=>{
       n.connection.input = [];
       n.connection.output = [];
       n.result = {};
+      n.applyHandler = [];
     });
     connections = [];
     Object.keys(nodes).forEach(ni=>{
@@ -184,6 +185,15 @@ const Nodes = R=>{
       },
       result: {}
     };
+    n.applyHandler = [];
+    n.apply = cb=>{
+      n.applyHandler.push(cb);
+    };
+    n.applyRefresh = _=>{
+      n.applyHandler.forEach(cb=>{
+        cb();
+      });
+    };
     nodes[nextId] = n;
     i.nodeId = nextId;
     nextId++;
@@ -250,9 +260,21 @@ const Runtime = _=>{
   r.freshId = _=>{
     return ctxId++;
   };
+  r.rewriteContext = cb=>X=>{
+    const o = {};
+    Object.keys(X).forEach(k=>{
+      o[k] = X[k];
+    });
+    o.id = r.freshId();
+    cb(o);
+    return o;
+  };
   r.addOutput = g=>{
     g.connect(out);
     outputNodes.push(g);
+  };
+  r.now = _=>{
+    return X.currentTime;
   };
   let micStream = null, waiting = null;
   r.getMic = cb=>{
@@ -279,14 +301,16 @@ const Halvet = _=>{
   const nodes = Nodes(region);
   const runtime = Runtime();
   const Eval = (n,context)=>{
+    const ctx = n.context ? n.context(context) : context;
     n.connection.input.forEach(c=>{
       if(c.type == Type.invalid) return;
       const t = c.source;
-      if(!t.result.hasOwnProperty(context.id)) {
-        Eval(t,context);
+      if(!t.result.hasOwnProperty(ctx.id)) {
+        Eval(t,ctx);
       }
     });
-    let value = n.eval(context);
+    let value = n.eval(ctx);
+    n.applyRefresh();
     n.result[context.id] = value;
   };
   let defaultNoteListener = [];
@@ -298,7 +322,7 @@ const Halvet = _=>{
     },
     attack: (p,v)=>{
       defaultNoteListener.forEach(l=>{
-        l.attack(p,v);
+        l.attack((p-60)/12,v);
       });
     },
     release: p=>{
@@ -318,7 +342,6 @@ const Halvet = _=>{
     runtime.restart();
     const defaultContext = {
       note: defaultNote,
-      velocity: 1,
       pitch: 0,
       frequency: 440,
       tempo: 140,
