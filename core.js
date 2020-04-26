@@ -2,7 +2,7 @@ const Q = {
   render: X=>{},
   resize: s=>{},
   key: (e,k)=>{},
-  mouse: (e,p)=>{},
+  mouse: (e,p,b)=>{},
   wheel: (p,d)=>{},
   midi: d=>{}
 };
@@ -25,19 +25,16 @@ resize();
 
 document.oncontextmenu = _=>false;
 document.addEventListener("mousedown",e=>{
-  if(e.button != 0) return;
-  Q.mouse("down", V2(e.clientX, e.clientY));
+  Q.mouse("down", V2(e.clientX, e.clientY), e.button);
 });
 document.addEventListener("mousemove",e=>{
-  if(e.button != 0) return;
-  Q.mouse("move", V2(e.clientX, e.clientY));
+  Q.mouse("move", V2(e.clientX, e.clientY), e.button);
 });
 document.addEventListener("mouseup",e=>{
-  if(e.button != 0) return;
-  Q.mouse("up", V2(e.clientX, e.clientY));
+  Q.mouse("up", V2(e.clientX, e.clientY), e.button);
 });
 document.addEventListener("mouseleave",e=>{
-  Q.mouse("leave", V2(e.clientX, e.clientY));
+  Q.mouse("leave", V2(e.clientX, e.clientY), e.button);
 });
 document.addEventListener("wheel",e=>{
   Q.wheel(V2(e.clientX, e.clientY), e.deltaY);

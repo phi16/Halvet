@@ -186,6 +186,25 @@ Operators.push({
 });
 
 Operators.push({
+  name: "Chirp",
+  hue: 0.85, sat: 1,
+  type: Type.forward,
+  initialize: (n,E)=>{
+    n.eval = X=>{
+      const o = E.X.createOscillator();
+      o.start();
+      X.note.listen((p,v)=>{
+        const freq = X.frequency * Math.pow(2, p + X.pitch);
+        o.frequency.value = freq;
+        o.frequency.setTargetAtTime(freq/5, E.now(), 0.03);
+      }, _=>{
+      });
+      return o;
+    };
+  }
+});
+
+Operators.push({
   name: "Envelope",
   hue: 0.95, sat: 1,
   type: Type.forward,
@@ -405,7 +424,7 @@ Operators.push({
       });
       X.note.listen((p,v)=>{
         g.gain.setTargetAtTime(1, E.now(), 0.001);
-        g.gain.setTargetAtTime(0, E.now()+delay+0.001, volume*0.1);
+        g.gain.setTargetAtTime(0, E.now()+delay+0.001, volume*0.2);
       }, _=>{});
       return g;
     };
@@ -627,6 +646,109 @@ Operators.push({
       const g = E.X.createGain();
       n.apply(_=>{
         g.gain.setTargetAtTime(Math.pow(volume, 2), E.now(), 0.001);
+      });
+      n.connection.input.forEach(c=>{
+        if(c.type == Type.forward) {
+          c.source.result[X.id].connect(g);
+        }
+      });
+      return g;
+    };
+  }
+});
+
+Operators.push({
+  name: "Loss",
+  hue: 0.95, sat: 1,
+  type: Type.forward,
+  initialize: (n,E)=>{
+    let volume = 1;
+    let drag = false;
+    let mousePos = null;
+    n.event.mouse = (e,p,w,h)=>{
+      const cur = V2(p.x/w, p.y/h);
+      if(e == "down") {
+        drag = true;
+        mousePos = cur;
+      } else if(e == "up") {
+        drag = false;
+      } else if(e == "move" && drag) {
+        const dif = cur.sub(mousePos);
+        volume += dif.x;
+        volume = Clamp(0, 1)(volume);
+        n.applyRefresh();
+        mousePos = cur;
+      }
+    };
+    n.render = (R,w,h)=>{
+      const X = R.X;
+      R.line(0.1,h*0.5,w-0.1,h*0.5).stroke(n.operator.hue,n.operator.sat*0.25,0.5,0.01);
+      R.shape(_=>{
+        const x = 0.15+volume*(w-0.3);
+        X.moveTo(x,h*0.5-0.1);
+        X.lineTo(x,h*0.5+0.1);
+        X.moveTo(0.15,h*0.5);
+        X.lineTo(x,h*0.5);
+      }).stroke(n.operator.hue,n.operator.sat*0.5,1,0.02);
+    };
+    n.eval = X=>{
+      const g = E.X.createGain();
+      let freq = 440;
+      n.apply(_=>{
+        g.gain.setTargetAtTime(Math.exp(-volume*4/freq), E.now(), 0.001);
+      });
+      X.note.listen((p,v)=>{
+        freq = X.frequency * Math.pow(2, p + X.pitch);
+        g.gain.setTargetAtTime(Math.exp(-volume*4/freq), E.now(), 0.001);
+      }, _=>{});
+      n.connection.input.forEach(c=>{
+        if(c.type == Type.forward) {
+          c.source.result[X.id].connect(g);
+        }
+      });
+      return g;
+    };
+  }
+});
+
+Operators.push({
+  name: "Amplify",
+  hue: 0.95, sat: 1,
+  type: Type.forward,
+  initialize: (n,E)=>{
+    let volume = 1;
+    let drag = false;
+    let mousePos = null;
+    n.event.mouse = (e,p,w,h)=>{
+      const cur = V2(p.x/w, p.y/h);
+      if(e == "down") {
+        drag = true;
+        mousePos = cur;
+      } else if(e == "up") {
+        drag = false;
+      } else if(e == "move" && drag) {
+        const dif = cur.sub(mousePos);
+        volume += dif.x;
+        volume = Clamp(0, 1)(volume);
+        n.applyRefresh();
+        mousePos = cur;
+      }
+    };
+    n.render = (R,w,h)=>{
+      const X = R.X;
+      R.line(0.1,h*0.5,w-0.1,h*0.5).stroke(n.operator.hue,n.operator.sat*0.25,0.5,0.01);
+      R.shape(_=>{
+        const x = 0.15+volume*(w-0.3);
+        X.moveTo(x,h*0.5-0.1);
+        X.lineTo(x,h*0.5+0.1);
+        X.moveTo(0.15,h*0.5);
+        X.lineTo(x,h*0.5);
+      }).stroke(n.operator.hue,n.operator.sat*0.5,1,0.02);
+    };
+    n.eval = X=>{
+      const g = E.X.createGain();
+      n.apply(_=>{
+        g.gain.setTargetAtTime(Math.pow(4, volume), E.now(), 0.001);
       });
       n.connection.input.forEach(c=>{
         if(c.type == Type.forward) {
@@ -1153,6 +1275,52 @@ Operators.push({
     n.context = E.rewriteContext(o=>{
       const t = o.tempo; // TODO: This will executed only once
       o.tempo = t*Math.pow(2,volume*2-1);
+    });
+    n.eval = X=>{
+      const g = E.X.createGain();
+      n.connection.input.forEach(c=>{
+        if(c.type == Type.forward) {
+          c.source.result[X.id].connect(g);
+        }
+      });
+      return g;
+    };
+  }
+});
+
+Operators.push({
+  name: "Beat",
+  hue: 0.1, sat: 1,
+  type: Type.forward,
+  initialize: (n,E)=>{
+    let noteListener = [];
+    const note = {
+      listen: (a,r)=>{
+        noteListener.push({
+          attack: a, release: r
+        });
+      },
+      attack: (p,v)=>{
+        noteListener.forEach(l=>{
+          l.attack(p,v);
+        });
+      },
+      release: p=>{
+        noteListener.forEach(l=>{
+          l.release(p);
+        });
+      }
+    };
+    let timer = null;
+    n.context = E.rewriteContext(o=>{
+      noteListener = []; // TODO: correct restart
+      const tempo = o.tempo;
+      if(timer) clearInterval(timer);
+      timer = setInterval(_=>{
+        note.attack(0,1);
+        note.release(0);
+      }, 60/tempo*1000);
+      o.note = note;
     });
     n.eval = X=>{
       const g = E.X.createGain();

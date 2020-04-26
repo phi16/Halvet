@@ -19,6 +19,7 @@ let selectNode = null, mouseOnNode = null;
 let grabNodes = [], grabbing = false, grabRemoveMode = false;
 let rotateValue = 0, zoomValue = 1;
 let repeatNumber = 0, repeatNumberM = 0;
+let pressControl = false;
 
 const Repeat = cb=>{
   cb();
@@ -56,23 +57,46 @@ const CheckBlankName = _=>{
   blankCandidate = H.candidate(blankName);
 };
 
-let mouseLoc = null;
-Q.mouse = (e,p)=>{
+let mouseLoc = null, rightClickNode = null;
+Q.mouse = (e,p,b)=>{
   mouseLoc = V2(p.x-screenSize.x/2, p.y-screenSize.y/2);
   const u = V.back(mouseLoc);
-  if(cursorMode == "Normal") {
-    if(e == "down") {
-      cursorValue = V2(Math.round(u.x), Math.round(u.y));
-      CursorChanged();
-    }
-  } else if(cursorMode == "Detail") {
-    const lu = Region.corner(selectNode.region, selectNode.angle, 0, 0);
-    const rw = selectNode.angle%2==0 ? selectNode.region.w : selectNode.region.h;
-    const rh = selectNode.angle%2==0 ? selectNode.region.h : selectNode.region.w;
-    selectNode.event.mouse(e,u.add(V2(0.5,0.5)).sub(lu).rotate(selectNode.angle*2*Math.PI/4), rw, rh);
+  function rightButtonEvent(n) {
+    const lu = Region.corner(n.region, n.angle, 0, 0);
+    const rw = n.angle%2==0 ? n.region.w : n.region.h;
+    const rh = n.angle%2==0 ? n.region.h : n.region.w;
+    n.event.mouse(e,u.add(V2(0.5,0.5)).sub(lu).rotate(n.angle*2*Math.PI/4), rw, rh);
   }
-  if(e == "leave") {
-    mouseLoc = null;
+  if(b == 0) { // Left
+    if(cursorMode == "Normal") {
+      if(e == "down") {
+        cursorValue = V2(Math.round(u.x), Math.round(u.y));
+        CursorChanged();
+      }
+      if(e == "move" && rightClickNode) {
+        rightButtonEvent(rightClickNode);
+      }
+    } else if(cursorMode == "Detail") {
+      rightClickNode = null;
+      const lu = Region.corner(selectNode.region, selectNode.angle, 0, 0);
+      const rw = selectNode.angle%2==0 ? selectNode.region.w : selectNode.region.h;
+      const rh = selectNode.angle%2==0 ? selectNode.region.h : selectNode.region.w;
+      selectNode.event.mouse(e,u.add(V2(0.5,0.5)).sub(lu).rotate(selectNode.angle*2*Math.PI/4), rw, rh);
+    }
+    if(e == "leave") {
+      mouseLoc = null;
+    }
+  } else if(b == 2) { // Right
+    if(cursorMode == "Normal" && e == "down") {
+      const u = V.back(mouseLoc);
+      u.x = Math.round(u.x), u.y = Math.round(u.y);
+      rightClickNode = H.select(u);
+      if(rightClickNode) rightButtonEvent(rightClickNode);
+    }
+    if(rightClickNode && e == "up") {
+      rightButtonEvent(rightClickNode);
+      rightClickNode = null;
+    }
   }
 };
 Q.wheel = (p,d)=>{
@@ -98,21 +122,52 @@ Q.key = (e,k)=>{
         if(k == RotateLeft)  rotateValue -= 1, rotated = true;
         if(k == RotateRight) rotateValue += 1, rotated = true;
         rotateValue = Mod(rotateValue, 4);
-      })
+      });
       if(rotated) V.rotate(rotateValue*0.25);
 
-      let moved = false, moveIndex = rotateValue;
-      if(k == MoveLeft)  moveIndex += 2, moved = true;
-      if(k == MoveRight) moveIndex += 0, moved = true;
-      if(k == MoveUp)    moveIndex += 1, moved = true;
-      if(k == MoveDown)  moveIndex += 3, moved = true;
-      if(moved) {
-        const dx = [1,0,-1,0], dy = [0,-1,0,1];
-        moveIndex = Mod(Math.round(moveIndex), 4);
-        Repeat(_=>{
-          cursorValue = cursorValue.add(V2(dx[moveIndex], dy[moveIndex]));
-        });
-        CursorChanged();
+      if(!pressControl) {
+        let moved = false, moveIndex = rotateValue;
+        if(k == MoveLeft)  moveIndex += 2, moved = true;
+        if(k == MoveRight) moveIndex += 0, moved = true;
+        if(k == MoveUp)    moveIndex += 1, moved = true;
+        if(k == MoveDown)  moveIndex += 3, moved = true;
+        if(moved) {
+          const dx = [1,0,-1,0], dy = [0,-1,0,1];
+          moveIndex = Mod(Math.round(moveIndex), 4);
+          Repeat(_=>{
+            cursorValue = cursorValue.add(V2(dx[moveIndex], dy[moveIndex]));
+          });
+          CursorChanged();
+        }
+      } else if(selectNode.operator.name == "*"){
+        let moved = false, moveIndex = rotateValue;
+        if(k == MoveLeft)  moveIndex += 3, moved = true;
+        if(k == MoveRight) moveIndex += 1, moved = true;
+        if(k == MoveUp)    moveIndex += 2, moved = true;
+        if(k == MoveDown)  moveIndex += 0, moved = true;
+        if(moved) {
+          const rotDirection = Mod(Math.round(moveIndex), 4);
+          const n = selectNode;
+          let found = false;
+          for(let i=0;i<n.open.length;i++) {
+            const o = n.open[i];
+            if(o.location.equal(cursorValue) && o.angle == rotDirection) {
+              found = true;
+              n.open.splice(i,1);
+              L.add("Shut Flow");
+              break;
+            }
+          }
+          if(!found) {
+            L.add(n.open.length == 0 ? "Turn Flow" : "Fork Flow");
+            n.open.push({
+              location: cursorValue,
+              angle: rotDirection
+            });
+          }
+          cursorSize = 0.6;
+          H.reflect();
+        }
       }
 
       if(k == MoveParent || k == MoveChild) {
@@ -186,6 +241,7 @@ Q.key = (e,k)=>{
       }
 
       if(k == "z") {
+        pressControl = true;
         if(selectNode && selectNode.operator.name != "*") {
           cursorSize = 1.5;
         } else {
@@ -221,27 +277,8 @@ Q.key = (e,k)=>{
             L.add(stopFlow ? "Stop Flow" : "Turn Flow");
             cursorSize = 0.6;
           } else {
-            const n = selectNode;
-            let found = false;
-            for(let i=0;i<n.open.length;i++) {
-              const o = n.open[i];
-              if(o.location.equal(cursorValue) && o.angle == rotateValue) {
-                found = true;
-                n.open.splice(i,1);
-                cursorSize = 0.6;
-                L.add("Shut Flow");
-                break;
-              }
-            }
-            if(!found) {
-              L.add(n.open.length == 0 ? "Turn Flow" : "Fork Flow");
-              n.open.push({
-                location: cursorValue,
-                angle: rotateValue
-              });
-              cursorSize = 0.6;
-            }
-            H.reflect();
+            L.add("Control Flow");
+            cursorSize = 1.4;
           }
         }
       }
@@ -283,6 +320,10 @@ Q.key = (e,k)=>{
           selectNode.grab = true;
           grabNodes.push(selectNode);
         }
+      }
+      if(k == " ") {
+        L.add("Reflect");
+        H.reflect();
       }
     } else if(cursorMode == "Create") {
       let moved = false, moveIndex = rotateValue;
@@ -522,6 +563,11 @@ Q.key = (e,k)=>{
         }
         grabbing = false;
       }
+    }
+    if(k == "z" && pressControl) {
+      L.add("End Control");
+      cursorSize = 0.6;
+      pressControl = false;
     }
   }
 };
