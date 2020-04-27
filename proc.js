@@ -7,7 +7,10 @@ const H = Halvet();
 const L = Log();
 
 Q.midi = d=>{
-  if(d[0] == 0x90) H.noteOn(d[1], d[2]/128);
+  if(d[0] == 0x90) {
+    L.add("Midi " + d[1]);
+    H.noteOn(d[1], d[2]/128);
+  }
   if(d[0] == 0x80) H.noteOff(d[1]);
 };
 

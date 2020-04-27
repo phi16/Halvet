@@ -322,7 +322,8 @@ const Halvet = _=>{
     },
     attack: (p,v)=>{
       defaultNoteListener.forEach(l=>{
-        l.attack((p-60)/12,v);
+        // 69 is 440Hz
+        l.attack((p-69)/12,v);
       });
     },
     release: p=>{
@@ -336,7 +337,7 @@ const Halvet = _=>{
   };
   h.noteOff = m=>{
     defaultNote.release(m);
-  }
+  };
   const Compile = _=>{
     defaultNoteListener = [];
     runtime.restart();

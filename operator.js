@@ -243,6 +243,31 @@ Operators.push({
 });
 
 Operators.push({
+  name: "Pluck",
+  hue: 0.95, sat: 1,
+  type: Type.forward,
+  initialize: (n,E)=>{
+    n.render = (R,w,h)=>{};
+    n.eval = X=>{
+      const g = E.X.createGain();
+      g.gain.value = 0;
+      n.connection.input.forEach(c=>{
+        if(c.type == Type.forward) {
+          c.source.result[X.id].connect(g);
+        }
+      });
+      X.note.listen((p,v)=>{
+        const freq = X.frequency * Math.pow(2, p + X.pitch);
+        g.gain.setTargetAtTime(1, E.now(), 0.001);
+        g.gain.setTargetAtTime(0, E.now() + 1/freq, 0.001);
+      }, _=>{
+      });
+      return g;
+    };
+  }
+});
+
+Operators.push({
   name: "Release",
   hue: 0.95, sat: 1,
   type: Type.forward,
@@ -695,11 +720,11 @@ Operators.push({
       const g = E.X.createGain();
       let freq = 440;
       n.apply(_=>{
-        g.gain.setTargetAtTime(Math.exp(-volume*4/freq), E.now(), 0.001);
+        g.gain.setTargetAtTime(Math.exp(-volume*100/freq), E.now(), 0.001);
       });
       X.note.listen((p,v)=>{
         freq = X.frequency * Math.pow(2, p + X.pitch);
-        g.gain.setTargetAtTime(Math.exp(-volume*4/freq), E.now(), 0.001);
+        g.gain.setTargetAtTime(Math.exp(-volume*100/freq), E.now(), 0.001);
       }, _=>{});
       n.connection.input.forEach(c=>{
         if(c.type == Type.forward) {
@@ -1015,7 +1040,7 @@ Operators.push({
       const right = E.X.createGain();
       const left = E.X.createGain();
       left.connect(right);
-      left.gain.value = -1;
+      left.gain.value = 1; // TODO
       return { left: left, right: right };
     };
   }
@@ -1030,10 +1055,10 @@ Operators.push({
     let freq = 440;
     n.eval = X=>{
       const d = E.X.createDelay();
-      d.delayTime.value = 1/freq/2;
+      d.delayTime.value = 1/freq;
       X.note.listen((p,v)=>{
-        const freq = X.frequency * Math.pow(2, p + X.pitch);
-        d.delayTime.setTargetAtTime(1/freq/2, E.now(), 0.001);
+        freq = X.frequency * Math.pow(2, p + X.pitch);
+        d.delayTime.setTargetAtTime(1/freq, E.now(), 0.001);
       }, _=>{});
       n.connection.input.forEach(c=>{
         if(c.type == Type.forward) {
