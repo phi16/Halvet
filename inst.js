@@ -106,6 +106,7 @@ const Inst = (_=>{
          + (p%2)*(Math.log2(5)-2)
          - Math.floor(p/4)*3
          - (Math.floor(p/2)%2 == 1 ? 1 : 0)
+         - (p%4 == 3 ? 1 : 0)
        );
     }
     os[p].attack(v);
@@ -158,7 +159,6 @@ Q.render = X=>{
 
   R.translate(screenSize.x/2, screenSize.y/2).scale(screenSize.y/2*0.8).with(_=>{
     for(let i=0;i<8;i++) {
-      R.line((i-3.5)*0.4,-2,(i-3.5)*0.4,2).stroke(0,0,i%2?0.25:0.15,0.03);
       for(let j=1;j<5;j++) {
         let p = i*2 + j%2;
         if(j == 1) p += 7;
@@ -167,6 +167,9 @@ Q.render = X=>{
         if(j == 1 && i < 4 || j == 4 && i >= 4) continue;
         let pitch = Math.floor(p/2)*Math.log2(3) + (p%2)*Math.log2(5);
         const x = i - 3.5, y = 2.5 - j;
+        if((i+Math.max(2,Math.min(3,j)))%2 == 1) {
+          R.rect(x*0.4-0.1,y*0.4-0.1,0.2,0.2).fill(0,0,0.15);
+        }
         function r(i,o,s,v) {
           if(i < 0) i = 0;
           const scale = 0.32, u = (i+o)/2*scale;
