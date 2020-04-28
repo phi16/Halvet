@@ -263,9 +263,6 @@ Q.render = X=>{
         if(j == 1 && i < 4 || j == 4 && i >= 4) continue;
         let pitch = Math.floor(p/2)*Math.log2(3) + (p%2)*Math.log2(5);
         const x = i - 3.5, y = 2.5 - j;
-        if((i+j)%2 == 1) {
-          R.rect(x*0.4-0.1,y*0.4-0.1,0.2,0.2).fill(0,0,0.15);
-        }
         function r(i,o,s,v) {
           if(i < 0) i = 0;
           const scale = 0.32, u = (i+o)/2*scale;
