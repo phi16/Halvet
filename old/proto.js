@@ -254,6 +254,7 @@ const CurveSquare = (it0,it1)=>{
     const dx = lx/s*2, dy = ly/s*2; // [-1,1]
     const u = dx + Math.pow(2,-dy+1)-1, v = dx + Math.pow(2,dy+1)-1;
     t0 = u, t1 = v;
+    console.log(t0,t1);
   };
   States.drag.commit = States.dragOut.commit = _=>{
     listeners.forEach(l=>{ l(); });
