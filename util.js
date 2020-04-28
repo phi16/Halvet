@@ -121,11 +121,12 @@ const Renderer = X=>{
   });
   r.poly = (x,y,s,n,a)=>shape(_=>{
     X.beginPath();
-    for(let i=0;i<=n;i++) {
+    for(let i=0;i<n;i++) {
       const dx = Math.cos((i/n+a)*Math.PI*2), dy = Math.sin((i/n+a)*Math.PI*2);
       if(i == 0) X.moveTo(x+dx*s, y+dy*s);
       else X.lineTo(x+dx*s,y+dy*s);
     }
+    X.closePath();
   });
   r.circle = (x,y,r)=>shape(_=>{
     X.beginPath();

@@ -102,10 +102,9 @@ const Inst = (_=>{
   a.noteOn = (p,v)=>{
     if(os[p] == null) {
       os[p] = createOsc(
-        Math.floor(p/2)*Math.log2(3)
-         + (p%2)*(Math.log2(5)-2)
-         - Math.floor(p/4)*3
-         - (Math.floor(p/2)%2 == 1 ? 1 : 0)
+        p*(2/12)
+         + (p>=8 ? 7/12 - 16/12 : 0)
+         - 1
        );
     }
     os[p].attack(v);
@@ -157,27 +156,20 @@ Q.render = X=>{
   }).stroke(0,0,0.3,2);
 
   R.translate(screenSize.x/2, screenSize.y/2).scale(screenSize.y/2*0.8).with(_=>{
-    for(let i=0;i<8;i++) {
-      R.line((i-3.5)*0.4,-2,(i-3.5)*0.4,2).stroke(0,0,i%2?0.25:0.15,0.03);
-      for(let j=1;j<5;j++) {
-        let p = i*2 + j%2;
-        if(j == 1) p += 7;
-        if(j == 4) p -= 7;
-        p = (p%16 + 16) % 16;
-        if(j == 1 && i < 4 || j == 4 && i >= 4) continue;
-        let pitch = Math.floor(p/2)*Math.log2(3) + (p%2)*Math.log2(5);
-        const x = i - 3.5, y = 2.5 - j;
-        function r(i,o,s,v) {
-          if(i < 0) i = 0;
-          const scale = 0.32, u = (i+o)/2*scale;
-          R.rect(x*0.4-u/2,y*0.4-u/2,u,u).stroke(pitch,s,v,(o-i)*scale/2);
-        }
-        r(1,1.1,1,0.5);
-        const g = Inst.gain(p);
-        r(g-0.2,g,1,1);
-        const s = Inst.status(p);
-        if(s > 0.01) r(1-s*0.1,1,0.5,1);
+    for(let p=0;p<16;p++) {
+      let pitch = p*(2/12) + (p>=8 ? 7/12 - 16/12 : 0);
+      const x = Math.floor(p/2) - 2 + (p<8?0:-4), y = 1.75 - (p%2*2 - 0.5) + (-Math.floor(p/2)*0.5) + (p<8?0:1);
+
+      function r(i,o,s,v) {
+        if(i < 0) i = 0;
+        const scale = 0.32, u = (i+o)/2*scale;
+        R.poly(x*0.4,y*0.4,u*0.5,4,p<8?1/8:0).stroke(pitch,s,v,(o-i)*scale/2);
       }
+      r(1,1.1,1,0.5);
+      const g = Inst.gain(p);
+      r(g-0.2,g,1,1);
+      const s = Inst.status(p);
+      if(s > 0.01) r(1-s*0.1,1,0.5,1);
     }
   });
 };
