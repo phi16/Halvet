@@ -6,7 +6,7 @@ const L = Log();
 const Inst = (_=>{
   const X = new AudioContext();
   const out = X.createGain();
-  out.gain.value = 1;
+  out.gain.value = 0.5;
   const reverb = X.createConvolver();
   function clampValue(t0,t1,x) {
     function value(x) {
@@ -158,10 +158,9 @@ const Inst = (_=>{
     if(os[p] == null) {
       os[p] = createOsc(
         Math.floor(p/2)*Math.log2(3)
-         + (p%2)*(Math.log2(5)-2)
+         + (p%2)*(Math.log2(5)-Math.log2(3)-1)
          - Math.floor(p/4)*3
-         - (Math.floor(p/2)%2 == 1 ? 1 : 0)
-         - (p%4 == 3 ? 1 : 0)
+         - (Math.floor(p/2)%2 == 1 ? 2 : 0)
        );
     }
     os[p].attack(v);
@@ -196,6 +195,9 @@ function SetLogTimer() {
 }
 
 Q.midi = d=>{
+  if(d.length != 3) {
+    console.log(d);
+  }
   if(d[0] == 0x90) Inst.noteOn((d[1]-4)%16, d[2]/127);
   if(d[0] == 0x80) Inst.noteOff((d[1]-4)%16);
   if(d[0] == 0xB0) {
@@ -261,7 +263,7 @@ Q.render = X=>{
         if(j == 4) p -= 7;
         p = (p%16 + 16) % 16;
         if(j == 1 && i < 4 || j == 4 && i >= 4) continue;
-        let pitch = Math.floor(p/2)*Math.log2(3) + (p%2)*Math.log2(5);
+        let pitch = Math.floor(p/2)*Math.log2(3) + (p%2)*(Math.log2(5)-Math.log2(3));
         const x = i - 3.5, y = 2.5 - j;
         function r(i,o,s,v) {
           if(i < 0) i = 0;
