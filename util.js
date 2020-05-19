@@ -150,6 +150,7 @@ const Renderer = X=>{
       });
       cb();
       X.restore();
+      lastShape = null;
     };
     f.translate = (x,y)=>{
       q.push(X=>X.translate(x,y));
